@@ -1,0 +1,33 @@
+{
+  "id": "./",
+  "name": "安考通 · 2027 中级注册安全工程师备考",
+  "short_name": "安考通",
+  "description": "面向 2027 年广东省中级注册安全工程师（其他安全）考试，四科统考 + 专业实务全覆盖，含知识树、章节练习、模拟考场、错题本、复习队列与学习报告。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F7FB",
+  "theme_color": "#0B2545",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

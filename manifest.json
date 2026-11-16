@@ -1,0 +1,33 @@
+{
+  "id": "./",
+  "name": "素学 · 公共营养师备考（纯净素专题）",
+  "short_name": "素学",
+  "description": "面向零基础人群的公共营养师（四级 / 三级）备考 App，以纯净素营养与健康为专题，用配餐、闯关、卡片等互动方式把营养学讲成看得懂的生活常识。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6FBF5",
+  "theme_color": "#16A34A",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
