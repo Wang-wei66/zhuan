@@ -53418,7 +53418,10 @@ window.PAPERS = [
   /* 自定义同步服务：形如 https://host/za 或 https://host/za/api?sharecode=XXX；
      设置后静态托管版（GitHub Pages）/ 单文件版也可接入同一同步服务，跨设备共用数据。 */
   function serverBase() {
-    var s = String(d.syncServer || '').trim().replace(/\/+$/, '');
+    var s = String(d.syncServer || '').trim();
+    var i = s.indexOf('?');
+    if (i >= 0) s = s.slice(0, i);          /* 剥离地址中携带的 query（如 sharecode） */
+    s = s.replace(/\/+$/, '');
     if (!s || !/^https?:\/\//i.test(s)) return '';
     return s.replace(/\/api\/?$/, '');
   }
