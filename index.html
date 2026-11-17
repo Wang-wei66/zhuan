@@ -106,7 +106,7 @@ a.inline{color:var(--za2);text-decoration:none}
         <div class="metric"><b>404</b><small>知识点</small></div>
         <div class="metric"><b>1231</b><small>题目</small></div>
       </div>
-      <a class="btn" href="za/">开始复习 <span aria-hidden="true">&rarr;</span></a>
+      <a class="btn" id="btn-za" href="index (3).html">开始复习 <span aria-hidden="true">&rarr;</span></a>
     </section>
 
     <section class="card sx">
@@ -125,7 +125,7 @@ a.inline{color:var(--za2);text-decoration:none}
         <div class="metric"><b>267</b><small>知识点</small></div>
         <div class="metric"><b>827</b><small>题目</small></div>
       </div>
-      <a class="btn" href="sx/">开始学习 <span aria-hidden="true">&rarr;</span></a>
+      <a class="btn" id="btn-sx" href="index (1).html">开始学习 <span aria-hidden="true">&rarr;</span></a>
     </section>
   </div>
 
@@ -153,5 +153,24 @@ a.inline{color:var(--za2);text-decoration:none}
     <b>内容说明</b>：题库均为按考点编写的仿真题，暂未收录官方历年真题；考务政策与膳食指南版本以当年官方公告为准。
   </div>
 </div>
+</div>
+<script>
+(function(){
+  /* 智能入口探测：若 za/ sx/ 子目录已上传，自动切换为干净路径链接；否则回退到根目录单文件 */
+  function probe(dir, btnId){
+    var xhr = new XMLHttpRequest();
+    xhr.open('HEAD', dir + '/index.html', true);
+    xhr.onload = function(){
+      if (xhr.status >= 200 && xhr.status < 400){
+        var a = document.getElementById(btnId);
+        if (a) a.setAttribute('href', dir + '/');
+      }
+    };
+    try { xhr.send(null); } catch(e) {}
+  }
+  probe('za', 'btn-za');
+  probe('sx', 'btn-sx');
+})();
+</script>
 </body>
 </html>

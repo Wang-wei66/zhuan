@@ -53080,7 +53080,8 @@ window.PAPERS = [
     goal: { examYear: 2027, province: '广东省', major: '其他安全', examDate: '2027-10-23', dailyTarget: 30, reminder: '20:30', theme: 'light', updatedAt: 0 },
     sessions: [], records: [], notes: {}, notesTs: {}, bookmarks: [], removedBookmarks: [],
     mastery: {}, review: {}, checkins: [], taskDone: {}, errorTags: {}, custom: [],
-    syncCode: '', syncEnabled: true, deviceId: '', lastSyncAt: 0, rev: 0, updatedAt: 0, wipeSeenAt: 0
+    syncCode: '', syncEnabled: true, deviceId: '', lastSyncAt: 0, rev: 0, updatedAt: 0, wipeSeenAt: 0,
+    syncServer: ''
   };
   var d;
   try { var raw = localStorage.getItem(KEY); d = raw ? Object.assign(clone(DEF), JSON.parse(raw)) : clone(DEF); }
@@ -53095,10 +53096,18 @@ window.PAPERS = [
   }
   if (!/^[A-Z0-9]{6,16}$/.test(d.syncCode)) d.syncCode = randCode(8);
   if (!d.deviceId) d.deviceId = 'dev-' + randCode(10);
-  /* 一键同步链接：?sync=XXXXXXXX 直接加入同一同步空间 */
+  /* 一键同步链接：?sync=XXXXXXXX 直接加入同一同步空间；
+     ?srv=（base64）携带自定义同步服务地址，供静态托管版 / 单文件版接入同一同步服务 */
   try {
     var sm = /[?&]sync=([A-Za-z0-9]{6,16})/.exec(location.search || '');
     if (sm) d.syncCode = sm[1].toUpperCase();
+    var sv = /[?&]srv=([A-Za-z0-9+/=_-]+)/.exec(location.search || '');
+    if (sv) {
+      try {
+        var dec = decodeURIComponent(escape(atob(sv[1].replace(/-/g, '+').replace(/_/g, '/'))));
+        if (/^https?:\/\//i.test(dec)) d.syncServer = dec;
+      } catch (e) { }
+    }
   } catch (e) { }
 
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(d)); return true; } catch (e) { return false; } }
@@ -53406,11 +53415,32 @@ window.PAPERS = [
   function shareCode() {
     try { return new URLSearchParams(location.search || '').get('sharecode') || ''; } catch (e) { return ''; }
   }
-  function qSuffix() { var sc = shareCode(); return sc ? '&sharecode=' + encodeURIComponent(sc) : ''; }
-  // 使用相对路径：在统一入口 /za/ 下会自动解析为 /za/api/...；
-  // 单独部署在站点根路径时解析为 /api/...；file:// 单文件版下请求失败即降级为本机模式。
-  function apiURL() { return 'api/sync?code=' + encodeURIComponent(d.syncCode) + qSuffix(); }
-  function healthURL() { var sc = shareCode(); return 'api/health' + (sc ? '?sharecode=' + encodeURIComponent(sc) : ''); }
+  /* 自定义同步服务：形如 https://host/za 或 https://host/za/api?sharecode=XXX；
+     设置后静态托管版（GitHub Pages）/ 单文件版也可接入同一同步服务，跨设备共用数据。 */
+  function serverBase() {
+    var s = String(d.syncServer || '').trim().replace(/\/+$/, '');
+    if (!s || !/^https?:\/\//i.test(s)) return '';
+    return s.replace(/\/api\/?$/, '');
+  }
+  function serverQuery() {
+    var s = String(d.syncServer || '').trim(), i = s.indexOf('?');
+    return i >= 0 ? s.slice(i + 1) : '';
+  }
+  function serverQ() {
+    var q = serverQuery();
+    if (!q && shareCode()) q = 'sharecode=' + encodeURIComponent(shareCode());
+    return q ? '&' + q : '';
+  }
+  // 相对路径：统一入口 /za/ 下解析为 /za/api/...；设置自定义服务后改为绝对地址。
+  function apiURL() {
+    var base = serverBase();
+    return (base ? base : '') + '/api/sync?code=' + encodeURIComponent(d.syncCode) + serverQ();
+  }
+  function healthURL() {
+    var base = serverBase();
+    var q = serverQuery() || (shareCode() ? 'sharecode=' + encodeURIComponent(shareCode()) : '');
+    return (base ? base : '') + '/api/health' + (q ? '?' + q : '');
+  }
   function pack() { var o = {}; SYNC_FIELDS.forEach(function (k) { o[k] = d[k]; }); return o; }
 
   function syncState() {
@@ -53420,6 +53450,7 @@ window.PAPERS = [
       records: d.records.length, sessions: d.sessions.length,
       notes: Object.keys(d.notes || {}).filter(function (k) { return d.notes[k]; }).length,
       bookmarks: d.bookmarks.length, wrong: wrongIds().length,
+      server: serverBase(), serverRaw: String(d.syncServer || ''),
       link: location.protocol === 'file:' ? '' : syncLink()
     };
   }
@@ -53540,8 +53571,8 @@ window.PAPERS = [
     return inflight;
   }
   function probe() {
-    if (location.protocol === 'file:') {
-      sync.available = false; setPhase('local'); sync.lastError = '单文件版为本机模式'; notify(false);
+    if (location.protocol === 'file:' && !serverBase()) {
+      sync.available = false; setPhase('local'); sync.lastError = '单文件版为本机模式（可在下方设置自定义同步服务开启同步）'; notify(false);
       return Promise.resolve(false);
     }
     return fetch(healthURL(), { credentials: 'same-origin', cache: 'no-store' })
@@ -53549,7 +53580,7 @@ window.PAPERS = [
       .then(function (j) { if (!j.ok) throw new Error('服务不可用'); sync.available = true; return true; })
       .catch(function () {
         sync.available = false; setPhase('local');
-        sync.lastError = '静态托管无同步服务，已切换为本机模式'; notify(false); return false;
+        sync.lastError = serverBase() ? '自定义同步服务不可用，已暂时本机保存' : '云端不可用，已切换为本机模式'; notify(false); return false;
       });
   }
   var pulling = null;
@@ -53606,7 +53637,25 @@ window.PAPERS = [
     if (!v) { setPhase('off'); notify(false); return Promise.resolve(false); }
     return syncNow();
   }
+  function setSyncServer(url) {
+    url = String(url || '').trim();
+    if (url && !/^https?:\/\//i.test(url)) throw new Error('服务地址需以 http:// 或 https:// 开头');
+    d.syncServer = url ? url.replace(/\/+$/, '') : '';
+    persist();
+    sync.available = false; setPhase('checking'); notify(false);
+    return probe().then(function (ok) { if (ok) return pullAndPush(); return false; });
+  }
+  function getSyncServer() { return String(d.syncServer || ''); }
   function syncLink() {
+    var base = serverBase();
+    if (base) {
+      /* 自定义服务模式：链接携带同步码与服务地址，在另一台设备打开即自动接入 */
+      try {
+        var full = base + (serverQuery() ? '?' + serverQuery() : '');
+        var b64 = btoa(unescape(encodeURIComponent(full))).replace(/\+/g, '-').replace(/\//g, '_');
+        return location.origin + location.pathname + '?sync=' + encodeURIComponent(d.syncCode) + '&srv=' + b64;
+      } catch (e) { }
+    }
     var q = [], sc = shareCode();
     if (sc) q.push('sharecode=' + encodeURIComponent(sc));
     q.push('sync=' + encodeURIComponent(d.syncCode));
@@ -53646,7 +53695,8 @@ window.PAPERS = [
     exportJSON: exportJSON, importJSON: importJSON, exportCSV: exportCSV,
     addCustomQuestions: addCustomQuestions, reset: reset, setGoal: setGoal,
     syncState: syncState, onSync: onSync, syncNow: syncNow, startSync: startSync,
-    joinCode: joinCode, newSyncCode: newSyncCode, setSyncEnabled: setSyncEnabled, syncLink: syncLink
+    joinCode: joinCode, newSyncCode: newSyncCode, setSyncEnabled: setSyncEnabled, syncLink: syncLink,
+    setSyncServer: setSyncServer, getSyncServer: getSyncServer
   };
 })();
 
@@ -53706,12 +53756,15 @@ window.PAPERS = [
 
   /* ---------------- 云端同步 UI ---------------- */
   function syncPhaseInfo(st) {
-    if (st.phase === 'local') return { t: '本机模式', d: '此站点由 GitHub Pages 静态托管，不含云端同步服务；答题记录、笔记、错题本完整保存在本机浏览器，换设备前请用「导出 JSON 备份」迁移。', c: 'warn' };
+    var srv = st.server ? ' · 自定义服务 ' + st.server : '';
+    if (st.phase === 'local') return st.server
+      ? { t: '本机暂存 · 自定义服务不可达', d: '自定义同步服务 ' + st.server + ' 暂时连不上：全部记录仍完整保存在本机，服务恢复后点「立即同步」自动补传。', c: 'warn' }
+      : { t: '本机模式', d: '此站点由 GitHub Pages 静态托管，不含云端同步服务；答题记录、笔记、错题本完整保存在本机浏览器，换设备前请用「导出 JSON 备份」迁移。', c: 'warn' };
     if (st.phase === 'off') return { t: '已关闭自动同步', d: '数据仅保存在本机。随时可重新开启，开启时会与云端合并历史记录。', c: 'warn' };
     if (st.phase === 'error') return { t: '同步失败 · 本机数据不受影响', d: (st.lastError || '网络异常') + '。答题、笔记、错题本照常记录，恢复后点「立即同步」即可补传。', c: 'warn' };
     if (st.phase === 'syncing') return { t: '正在同步…', d: '正在与云端合并答题记录、笔记与错题本。', c: '' };
     if (st.phase === 'checking') return { t: '正在连接同步服务…', d: '本机数据已保存，连接成功后自动同步。', c: '' };
-    return { t: '已同步', d: '最近同步 ' + (st.lastAt ? fmtDate(st.lastAt) : '刚刚') + ' · 云端版本 ' + st.serverRev +
+    return { t: '已同步', d: '最近同步 ' + (st.lastAt ? fmtDate(st.lastAt) : '刚刚') + ' · 云端版本 ' + st.serverRev + srv +
       ' · 本机已有 ' + st.records + ' 条作答记录、' + st.wrong + ' 道错题、' + st.notes + ' 条笔记。', c: 'ok' };
   }
   function syncStatusHTML(st) {
@@ -54519,6 +54572,11 @@ window.PAPERS = [
       '<div class="field"><label>加入另一台设备 / 已有同步空间</label>' +
       '<div class="row" style="gap:8px"><input class="input" id="syncJoinInput" placeholder="输入 6-16 位同步码" maxlength="16" style="flex:1;min-width:120px">' +
       '<button class="btn sm primary" data-act="sync-join">加入并同步</button></div></div>' +
+      '<div class="field"><label>自定义同步服务 · GitHub Pages / 单文件版接入在线同步时填写，在线版无需填写</label>' +
+      '<div class="row wrap" style="gap:8px"><input class="input" id="syncServerInput" placeholder="如 https://xxx.app.workbuddy.host/za?sharecode=XXXXXXXX" style="flex:1;min-width:180px" value="' + esc(st.serverRaw || '') + '">' +
+      '<button class="btn sm primary" data-act="sync-save-server">保存并连接</button>' +
+      (st.serverRaw ? '<button class="btn sm" data-act="sync-clear-server">恢复默认</button>' : '') + '</div>' +
+      '<div class="small muted" style="margin-top:6px">填写同步服务的地址（可含 sharecode 参数）后，本页的学习记录会同步到该服务；在另一台设备填入相同地址与同步码，记录自动汇合。</div></div>' +
       '<div class="row wrap" style="gap:8px"><button class="btn sm primary" data-act="sync-now">' + ic('refresh') + '立即同步</button>' +
       '<button class="btn sm" data-act="sync-toggle"><span id="syncToggleLabel">' + (st.enabled ? '关闭自动同步' : '开启自动同步') + '</span></button>' +
       '<button class="btn sm" data-act="sync-new-code">' + ic('plus') + '新建同步空间</button></div>' +
@@ -54651,6 +54709,20 @@ window.PAPERS = [
         break;
       case 'confirm-new-code':
         closeModal(); S.newSyncCode().then(function () { render(); }); toast('已新建同步空间');
+        break;
+      case 'sync-save-server':
+        var su = $('#syncServerInput') ? $('#syncServerInput').value.trim() : '';
+        try {
+          S.setSyncServer(su).then(function (ok) {
+            render();
+            toast(ok ? '自定义同步服务已连接，记录已合并' : '服务暂不可用，已先保存在本机，恢复后自动补传');
+          });
+          render();
+        } catch (err) { toast(err.message); }
+        break;
+      case 'sync-clear-server':
+        S.setSyncServer('').then(function () { render(); toast('已恢复默认同步服务'); });
+        render();
         break;
       default: break;
     }
