@@ -53417,6 +53417,9 @@ window.PAPERS = [
   }
   /* 自定义同步服务：形如 https://host/za 或 https://host/za/api?sharecode=XXX；
      设置后静态托管版（GitHub Pages）/ 单文件版也可接入同一同步服务，跨设备共用数据。 */
+  /* 默认同步服务：GitHub Pages 等静态托管无后端，probe 失败时自动接入，
+     与在线同步版共用同一后端与同步码体系，无需用户配置即可跨设备同步。 */
+  var DEFAULT_SYNC_SERVER = 'https://a5224516971475f50.app.workbuddy.host/za?sharecode=KBGMDSOJ3Y';
   function serverBase() {
     var s = String(d.syncServer || '').trim();
     var i = s.indexOf('?');
@@ -53578,10 +53581,23 @@ window.PAPERS = [
       sync.available = false; setPhase('local'); sync.lastError = '单文件版为本机模式（可在下方设置自定义同步服务开启同步）'; notify(false);
       return Promise.resolve(false);
     }
+    var abs = serverBase();
     return fetch(healthURL(), { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (j) { if (!j.ok) throw new Error('服务不可用'); sync.available = true; return true; })
       .catch(function () {
+        /* 静态托管（GitHub Pages 等）无本地后端：自动接入默认同步服务后重试 */
+        if (!abs && !shareCode() && /^https?:$/i.test(location.protocol)) {
+          d.syncServer = DEFAULT_SYNC_SERVER; persist();
+          sync.available = false; setPhase('checking'); notify(false);
+          return fetch(healthURL(), { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+            .then(function (j) { if (!j.ok) throw new Error('服务不可用'); sync.available = true; return true; })
+            .catch(function () {
+              sync.available = false; setPhase('local');
+              sync.lastError = '默认同步服务不可用，已暂时本机保存，恢复后自动补传'; notify(false); return false;
+            });
+        }
         sync.available = false; setPhase('local');
         sync.lastError = serverBase() ? '自定义同步服务不可用，已暂时本机保存' : '云端不可用，已切换为本机模式'; notify(false); return false;
       });
@@ -53762,7 +53778,7 @@ window.PAPERS = [
     var srv = st.server ? ' · 自定义服务 ' + st.server : '';
     if (st.phase === 'local') return st.server
       ? { t: '本机暂存 · 自定义服务不可达', d: '自定义同步服务 ' + st.server + ' 暂时连不上：全部记录仍完整保存在本机，服务恢复后点「立即同步」自动补传。', c: 'warn' }
-      : { t: '本机模式', d: '此站点由 GitHub Pages 静态托管，不含云端同步服务；答题记录、笔记、错题本完整保存在本机浏览器，换设备前请用「导出 JSON 备份」迁移。', c: 'warn' };
+      : { t: '本机模式', d: '当前处于本机模式：默认同步服务暂时连不上，全部记录仍完整保存在本机浏览器，服务恢复或点「立即同步」后会自动补传。', c: 'warn' };
     if (st.phase === 'off') return { t: '已关闭自动同步', d: '数据仅保存在本机。随时可重新开启，开启时会与云端合并历史记录。', c: 'warn' };
     if (st.phase === 'error') return { t: '同步失败 · 本机数据不受影响', d: (st.lastError || '网络异常') + '。答题、笔记、错题本照常记录，恢复后点「立即同步」即可补传。', c: 'warn' };
     if (st.phase === 'syncing') return { t: '正在同步…', d: '正在与云端合并答题记录、笔记与错题本。', c: '' };
@@ -54575,11 +54591,11 @@ window.PAPERS = [
       '<div class="field"><label>加入另一台设备 / 已有同步空间</label>' +
       '<div class="row" style="gap:8px"><input class="input" id="syncJoinInput" placeholder="输入 6-16 位同步码" maxlength="16" style="flex:1;min-width:120px">' +
       '<button class="btn sm primary" data-act="sync-join">加入并同步</button></div></div>' +
-      '<div class="field"><label>自定义同步服务 · GitHub Pages / 单文件版接入在线同步时填写，在线版无需填写</label>' +
+      '<div class="field"><label>自定义同步服务 · GitHub 版已默认接入在线同步服务，无需填写；如需自建后端可在此覆盖</label>' +
       '<div class="row wrap" style="gap:8px"><input class="input" id="syncServerInput" placeholder="如 https://xxx.app.workbuddy.host/za?sharecode=XXXXXXXX" style="flex:1;min-width:180px" value="' + esc(st.serverRaw || '') + '">' +
       '<button class="btn sm primary" data-act="sync-save-server">保存并连接</button>' +
       (st.serverRaw ? '<button class="btn sm" data-act="sync-clear-server">恢复默认</button>' : '') + '</div>' +
-      '<div class="small muted" style="margin-top:6px">填写同步服务的地址（可含 sharecode 参数）后，本页的学习记录会同步到该服务；在另一台设备填入相同地址与同步码，记录自动汇合。</div></div>' +
+      '<div class="small muted" style="margin-top:6px">GitHub Pages 版会自动接入默认同步服务（上方输入框中显示的地址）；填入自建服务地址可覆盖，点「恢复默认」切回。同一同步码的多台设备记录自动汇合。</div></div>' +
       '<div class="row wrap" style="gap:8px"><button class="btn sm primary" data-act="sync-now">' + ic('refresh') + '立即同步</button>' +
       '<button class="btn sm" data-act="sync-toggle"><span id="syncToggleLabel">' + (st.enabled ? '关闭自动同步' : '开启自动同步') + '</span></button>' +
       '<button class="btn sm" data-act="sync-new-code">' + ic('plus') + '新建同步空间</button></div>' +

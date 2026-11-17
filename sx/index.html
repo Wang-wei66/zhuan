@@ -41603,9 +41603,19 @@ window.BADGES = [
   }
   function qSuffix() { var sc = shareCode(); return sc ? '&sharecode=' + encodeURIComponent(sc) : ''; }
   // 使用相对路径：在统一入口 /sx/ 下会自动解析为 /sx/api/...；
-  // 单独部署在站点根路径时解析为 /api/...；file:// 单文件版下请求失败即降级为本机模式。
-  function apiURL() { return 'api/sync?code=' + encodeURIComponent(d.syncCode) + qSuffix(); }
-  function healthURL() { var sc = shareCode(); return 'api/health' + (sc ? '?sharecode=' + encodeURIComponent(sc) : ''); }
+  // 静态托管（GitHub Pages 等）无本地后端时，probe 失败自动接入默认同步服务，
+  // 与在线同步版共用同一后端与同步码体系，无需用户配置即可跨设备同步。
+  var DEFAULT_SYNC_BASE = 'https://a5224516971475f50.app.workbuddy.host/sx';
+  var DEFAULT_SYNC_QUERY = 'sharecode=KBGMDSOJ3Y';
+  var remoteBase = '';
+  function apiURL() {
+    if (remoteBase) return remoteBase + '/api/sync?code=' + encodeURIComponent(d.syncCode) + (DEFAULT_SYNC_QUERY ? '&' + DEFAULT_SYNC_QUERY : '') + qSuffix();
+    return 'api/sync?code=' + encodeURIComponent(d.syncCode) + qSuffix();
+  }
+  function healthURL() {
+    if (remoteBase) return remoteBase + '/api/health' + (DEFAULT_SYNC_QUERY ? '?' + DEFAULT_SYNC_QUERY : '');
+    var sc = shareCode(); return 'api/health' + (sc ? '?sharecode=' + encodeURIComponent(sc) : '');
+  }
   function readPlate() {
     try { return JSON.parse(localStorage.getItem(PLATE_KEY) || '{}') || {}; } catch (e) { return {}; }
   }
@@ -41767,7 +41777,7 @@ window.BADGES = [
     return inflight;
   }
   function probe() {
-    if (location.protocol === 'file:') {
+    if (location.protocol === 'file:' && !remoteBase) {
       sync.available = false; setPhase('local'); sync.lastError = '单文件版为本机模式'; notify(false);
       return Promise.resolve(false);
     }
@@ -41775,6 +41785,19 @@ window.BADGES = [
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (j) { if (!j.ok) throw new Error('服务不可用'); sync.available = true; return true; })
       .catch(function () {
+        /* 静态托管（GitHub Pages 等）无本地后端：自动接入默认同步服务后重试 */
+        if (!remoteBase && !shareCode() && /^https?:$/i.test(location.protocol)) {
+          remoteBase = DEFAULT_SYNC_BASE;
+          sync.available = false; setPhase('checking'); notify(false);
+          return fetch(healthURL(), { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+            .then(function (j) { if (!j.ok) throw new Error('服务不可用'); sync.available = true; return true; })
+            .catch(function () {
+              remoteBase = '';
+              sync.available = false; setPhase('local');
+              sync.lastError = '默认同步服务不可用，已暂时本机保存，恢复后自动补传'; notify(false); return false;
+            });
+        }
         sync.available = false; setPhase('local');
         sync.lastError = '静态托管无同步服务，已切换为本机模式'; notify(false); return false;
       });
@@ -42435,7 +42458,7 @@ window.BADGES = [
   }
   function syncStatusHTML(st) {
     var i;
-    if (st.phase === 'local') i = { t: '本机模式', d: '此站点由 GitHub Pages 静态托管，不含云端同步服务；答题记录、笔记、错题本完整保存在本机浏览器，换设备前请用「导出 JSON 备份」迁移。', c: 'warn' };
+    if (st.phase === 'local') i = { t: '本机模式', d: '当前处于本机模式：默认同步服务暂时连不上，全部记录仍完整保存在本机浏览器，服务恢复或点「立即同步」后会自动补传。', c: 'warn' };
     else if (st.phase === 'off') i = { t: '已关闭自动同步', d: '数据仅保存在本机。随时可重新开启，开启时会与云端合并历史记录。', c: 'warn' };
     else if (st.phase === 'error') i = { t: '同步失败 · 本机数据不受影响', d: (st.lastError || '网络异常') + '。答题、笔记、错题本照常记录，恢复后点「立即同步」即可补传。', c: 'warn' };
     else if (st.phase === 'syncing') i = { t: '正在同步…', d: '正在与云端合并答题记录、笔记、错题本与游戏进度。', c: '' };

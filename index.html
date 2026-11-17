@@ -106,7 +106,7 @@ a.inline{color:var(--za2);text-decoration:none}
         <div class="metric"><b>404</b><small>知识点</small></div>
         <div class="metric"><b>1231</b><small>题目</small></div>
       </div>
-      <a class="btn" id="btn-za" href="index (3).html">开始复习 <span aria-hidden="true">&rarr;</span></a>
+      <a class="btn" href="za/">开始复习 <span aria-hidden="true">&rarr;</span></a>
     </section>
 
     <section class="card sx">
@@ -125,15 +125,15 @@ a.inline{color:var(--za2);text-decoration:none}
         <div class="metric"><b>267</b><small>知识点</small></div>
         <div class="metric"><b>827</b><small>题目</small></div>
       </div>
-      <a class="btn" id="btn-sx" href="index (1).html">开始学习 <span aria-hidden="true">&rarr;</span></a>
+      <a class="btn" href="sx/">开始学习 <span aria-hidden="true">&rarr;</span></a>
     </section>
   </div>
 
   <div class="notes">
     <div class="note">
       <h3><span>1</span>关于学习数据</h3>
-      <p>此站点为纯静态托管，不含同步服务。答题记录、笔记、错题本、游戏进度都保存在<b>当前浏览器</b>，刷新不会丢；换设备、换浏览器或清理数据前，请在 App 的「设置 / 我的」中<b>导出 JSON 备份</b>，再到新设备导入。</p>
-      <p style="margin-top:8px">另有在线同步版支持跨设备自动合并记录，链接请自行保留，不要公开分享同步码。</p>
+      <p>两个 App 均<b>已接入云端同步</b>：打开后自动连接同步服务，答题记录、笔记、错题本、收藏、打卡等即时上传，同一同步码的多台设备记录自动汇合去重。</p>
+      <p style="margin-top:8px">想合并两台设备的数据：在旧设备「我的 → 云端同步」复制同步码，到新设备「加入另一台设备」填入即可。云端不可用时自动降为本机保存，恢复后补传；建议仍定期<b>导出 JSON 备份</b>。</p>
     </div>
     <div class="note">
       <h3><span>2</span>iPhone 添加到主屏幕</h3>
@@ -153,24 +153,5 @@ a.inline{color:var(--za2);text-decoration:none}
     <b>内容说明</b>：题库均为按考点编写的仿真题，暂未收录官方历年真题；考务政策与膳食指南版本以当年官方公告为准。
   </div>
 </div>
-</div>
-<script>
-(function(){
-  /* 智能入口探测：若 za/ sx/ 子目录已上传，自动切换为干净路径链接；否则回退到根目录单文件 */
-  function probe(dir, btnId){
-    var xhr = new XMLHttpRequest();
-    xhr.open('HEAD', dir + '/index.html', true);
-    xhr.onload = function(){
-      if (xhr.status >= 200 && xhr.status < 400){
-        var a = document.getElementById(btnId);
-        if (a) a.setAttribute('href', dir + '/');
-      }
-    };
-    try { xhr.send(null); } catch(e) {}
-  }
-  probe('za', 'btn-za');
-  probe('sx', 'btn-sx');
-})();
-</script>
 </body>
 </html>
